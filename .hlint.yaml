@@ -1,0 +1,50 @@
+---
+- ignore: {name: "Use list comprehension"}
+- ignore: {name: "Use camelCase"}
+
+# Custom Warnings
+- warn: {lhs: fromJust, rhs: fromJustNote}
+- warn: {lhs: mapM, rhs: traverse}
+- warn: {lhs: mapM_, rhs: traverse_}
+- warn: {lhs: forM, rhs: for}
+- warn: {lhs: forM_, rhs: for_}
+
+# Specify additional command line arguments
+- arguments:
+  - -XDataKinds
+  - -XDeriveAnyClass
+  - -XDeriveGeneric
+  - -XDerivingStrategies
+  - -XFlexibleContexts
+  - -XFlexibleInstances
+  - -XGADTs
+  - -XGeneralizedNewtypeDeriving
+  - -XMultiParamTypeClasses
+  - -XNamedFieldPuns
+  - -XOverloadedLabels
+  - -XOverloadedStrings
+  - -XScopedTypeVariables
+  - -XTupleSections
+  - -XTypeApplications
+  - -XTypeFamilies
+
+- modules:
+  - {name: [Data.Set], as: Set}
+  - {name: [Data.Map], as: Map}
+  - {name: [Data.HashSet], as: HashSet}
+  - {name: [Data.HashMap.Strict], as: HashMap}
+  - {name: [Data.Text], as: T}
+  - {name: [Data.Text.Encoding], as: T}
+  - {name: [Data.Text.IO], as: T}
+  - {name: [Data.Text.Lazy], as: TL}
+  - {name: [Data.Text.Lazy.Encoding], as: TL}
+  - {name: [Data.Text.IO.Lazy], as: TL}
+  - {name: [Data.ByteString], as: BS}
+  - {name: [Data.ByteString.Lazy], as: BSL}
+  - {name: [Data.ByteString.Char8], as: BS8}
+  - {name: [Data.ByteString.Lazy.Char8], as: BSL8}
+  - {name: [Data.List.NonEmpty], as: NE}
+  - {name: [Data.Sequence], as: Seq}
+
+- functions:
+  - {name: unsafePerformIO, within: []}  # never use unsafePerformIO

@@ -1,0 +1,68 @@
+name: pr-reminder
+version: 0.1.0.0
+github: "eborden/pr-reminder"
+license: BSD3
+author: "Evan Rutledge Borden"
+maintainer: "evan@evan-borden.com"
+copyright: "Evan Rutledge Borden"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+dependencies:
+- base >= 4.7 && < 5
+- mtl
+- text
+
+ghc-options:
+  - -Wall
+  - -Werror
+
+library:
+  dependencies:
+  - aeson
+  - bytestring
+  - containers
+  - exceptions
+  - generic-lens
+  - generic-lens-labels
+  - http-client
+  - lens
+  - megaparsec
+  - persistent
+  - persistent-sqlite
+  - persistent-template
+  - time
+  - wreq
+  source-dirs: src
+
+default-extensions:
+- DataKinds
+- DeriveAnyClass
+- DeriveGeneric
+- DerivingStrategies
+- DuplicateRecordFields
+- FlexibleContexts
+- FlexibleInstances
+- GADTs
+- GeneralizedNewtypeDeriving
+- MultiParamTypeClasses
+- NamedFieldPuns
+- OverloadedLabels
+- OverloadedStrings
+- ScopedTypeVariables
+- TupleSections
+- TypeApplications
+- TypeFamilies
+
+executables:
+  pr-reminder-exe:
+    main: Main.hs
+    source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - pr-reminder
