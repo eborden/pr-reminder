@@ -17,6 +17,7 @@ import PrReminder.DB
 import PrReminder.Github
 import PrReminder.Http
 import PrReminder.Repo
+import PrReminder.Slack
 import PrReminder.Url
 
 main :: IO ()
@@ -66,19 +67,37 @@ instance MonadRepo Run where
 printDigest :: (MonadIO m, MonadRepo m, MonadHttp m) => [Client] -> m ()
 printDigest clients = do
   let
-    slackMap = Map.fromList $ (clientUsername &&& clientSlackname) <$> clients
+    slackMap = Map.fromList
+      [ (u, slack)
+      | c <- clients
+      , let u = clientUsername c
+      , let Just slack = clientSlackname c
+      ]
   (pullMap, usernameMap) <- digest
   liftIO $ do
     putStrLn $ show (length pullMap) <> " open pull requests"
     for_ (Map.toList usernameMap) $ \(pullnum, usernames) -> do
       let
         Just pull = Map.lookup pullnum pullMap
-        usernamesWithSlack = usernames <&> \name ->
-          maybe name ("@" <>) . join $ Map.lookup name slackMap
-      T.putStrLn $ title pull
-      T.putStrLn $ "<" <> unUrl (view #html_url pull) <> ">"
-      T.putStrLn $ "Pending Review: " <> T.intercalate ", " usernamesWithSlack
-      T.putStrLn ""
+        usernamesWithSlack =
+          usernames <&> \name -> maybe name ("@" <>) $ Map.lookup name slackMap
+        msg = T.unlines
+          [ title pull
+          , "<" <> unUrl (view #html_url pull) <> ">"
+          , "Pending Review: " <> T.intercalate ", " usernamesWithSlack
+          ]
+
+      T.putStrLn msg
+
+      -- TODO this hides failures
+      sequence_ $ catMaybes $ usernames <&> \name -> do
+        username <- Map.lookup name slackMap
+        pure $ postEphemeral Ephemeral
+          { token = ""
+          , channel = "engineering"
+          , text = msg
+          , user = username
+          }
 
 digest :: (MonadRepo m, MonadHttp m) => m (Map Natural PR, Map Natural [Text])
 digest = do
