@@ -6,3 +6,4 @@ class Monad m => MonadRepo m where
   askRepo :: m Text
   askOwner :: m Text
   askToken :: m Text
+  askSlackToken :: m Text

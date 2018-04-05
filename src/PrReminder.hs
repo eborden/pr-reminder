@@ -35,6 +35,7 @@ withApps f = do
     { repo = repoName repo
     , owner = repoOwner repo
     , token = repoToken repo
+    , slackToken = repoSlackToken repo
     }
 
 dbName :: Text
@@ -44,6 +45,7 @@ data App = App
   { repo :: Text
   , owner :: Text
   , token :: Text
+  , slackToken :: Text
   }
   deriving (Generic)
 
@@ -63,16 +65,19 @@ instance MonadRepo Run where
   askRepo = asks $ view #repo
   askOwner = asks $ view #owner
   askToken = asks $ view #token
+  askSlackToken = asks $ view #slackToken
 
 printDigest :: (MonadIO m, MonadRepo m, MonadHttp m) => [Client] -> m ()
 printDigest clients = do
   let
     slackMap = Map.fromList
-      [ (u, slack)
+      [ (u, (slackName, slackId))
       | c <- clients
       , let u = clientUsername c
-      , let Just slack = clientSlackname c
+      , let Just slackName = clientSlackname c
+      , let Just slackId = clientSlackId c
       ]
+  slackToken <- askSlackToken
   (pullMap, usernameMap) <- digest
   liftIO $ do
     putStrLn $ show (length pullMap) <> " open pull requests"
@@ -80,7 +85,7 @@ printDigest clients = do
       let
         Just pull = Map.lookup pullnum pullMap
         usernamesWithSlack =
-          usernames <&> \name -> maybe name ("@" <>) $ Map.lookup name slackMap
+          usernames <&> \name -> maybe name (("@" <>) . fst) $ Map.lookup name slackMap
         msg = T.unlines
           [ title pull
           , "<" <> unUrl (view #html_url pull) <> ">"
@@ -89,15 +94,16 @@ printDigest clients = do
 
       T.putStrLn msg
 
-      -- TODO this hides failures
-      sequence_ $ catMaybes $ usernames <&> \name -> do
-        username <- Map.lookup name slackMap
-        pure $ postEphemeral Ephemeral
-          { token = ""
-          , channel = "engineering"
-          , text = msg
-          , user = username
-          }
+      for_ usernames $ \name ->
+        case Map.lookup name slackMap of
+          Nothing -> pure ()
+          Just (_, slackId) -> when (name == "eborden") $
+            print =<< postEphemeral slackToken Ephemeral
+              { channel = "#test"
+              , text = msg
+              , user = slackId
+              , as_user = True
+              }
 
 digest :: (MonadRepo m, MonadHttp m) => m (Map Natural PR, Map Natural [Text])
 digest = do
