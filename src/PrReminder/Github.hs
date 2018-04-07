@@ -16,11 +16,12 @@ import PrReminder.Http
 import PrReminder.Ref
 import PrReminder.Repo
 import PrReminder.Url
+import PrReminder.Username
 
 -- GET /users/:username
 data User = User
   { id :: Ref
-  , login :: Text
+  , login :: Username
   , html_url :: Url
   }
   deriving (Show, Generic, FromJSON)
@@ -90,7 +91,7 @@ getReviewRequest num = getWithToken
   =<< prefixWithRepo ("/pulls/" <> show num <> "/requested_reviewers")
 
 getReviewRequestUsers
-  :: (MonadHttp m, MonadRepo m) => Natural -> m (Set (Natural, Text))
+  :: (MonadHttp m, MonadRepo m) => Natural -> m (Set (Natural, Username))
 getReviewRequestUsers num = do
   Right rev <- getReviewRequest num
   let usernames = Set.fromList $ (num, ) . view #login <$> users rev
@@ -114,7 +115,7 @@ getReviewRespose num =
   getWithToken =<< prefixWithRepo ("/pulls/" <> show num <> "/reviews")
 
 getReviewResponseUsers
-  :: (MonadHttp m, MonadRepo m) => Natural -> m (Set (Natural, Text))
+  :: (MonadHttp m, MonadRepo m) => Natural -> m (Set (Natural, Username))
 getReviewResponseUsers num = do
   Right resps <- getReviewRespose num
   pure . Set.fromList $ (num, ) . view (#user . #login) <$> resps

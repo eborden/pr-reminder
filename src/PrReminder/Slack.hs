@@ -13,11 +13,12 @@ import qualified Data.Text.Encoding as T
 import Network.HTTP.Client (HttpException(..))
 import Network.Wreq hiding (postWith)
 import PrReminder.Http
+import PrReminder.SlackId
 
 data Ephemeral = Ephemeral
   { channel :: Text
   , text :: Text
-  , user ::  Text
+  , user ::  SlackId
   , as_user ::  Bool
   }
   deriving (Generic, ToJSON)

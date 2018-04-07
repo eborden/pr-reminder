@@ -3,6 +3,7 @@ module Import
   , Map
   , Text
   , Set
+  , tshow
   ) where
 
 import Prelude as X
@@ -18,7 +19,10 @@ import Data.Map (Map)
 import Data.Maybe as X
 import Data.Semigroup as X ((<>))
 import Data.Set (Set)
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import Data.Traversable as X
 import GHC.Generics as X
 import Numeric.Natural as X
+
+tshow :: Show a => a -> Text
+tshow = pack . show

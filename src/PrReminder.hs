@@ -10,7 +10,6 @@ import Control.Monad.Reader
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import Database.Persist
 import Database.Persist.Sqlite
 import PrReminder.DB
@@ -18,7 +17,10 @@ import PrReminder.Github
 import PrReminder.Http
 import PrReminder.Repo
 import PrReminder.Slack
+import PrReminder.SlackId
+import PrReminder.Slackname
 import PrReminder.Url
+import PrReminder.Username
 
 main :: IO ()
 main = do
@@ -26,7 +28,7 @@ main = do
     runMigration migrateAll
     fmap entityVal <$> selectList [] []
   withApps $ \app ->
-    (`runReaderT` app) . run $ printDigest clients
+    (`runReaderT` app) . run $ sendDigest clients
 
 withApps :: (App -> IO b) -> IO ()
 withApps f = do
@@ -61,51 +63,57 @@ newtype Run a = Run { run :: ReaderT App IO a }
     , MonadIO
     )
 
+
 instance MonadRepo Run where
   askRepo = asks $ view #repo
   askOwner = asks $ view #owner
   askToken = asks $ view #token
   askSlackToken = asks $ view #slackToken
 
-printDigest :: (MonadIO m, MonadRepo m, MonadHttp m) => [Client] -> m ()
-printDigest clients = do
-  let
-    slackMap = Map.fromList
-      [ (u, (slackName, slackId))
-      | c <- clients
-      , let u = clientUsername c
-      , let Just slackName = clientSlackname c
-      , let Just slackId = clientSlackId c
-      ]
-  slackToken <- askSlackToken
+sendDigest :: (MonadRepo m, MonadHttp m) => [Client] -> m ()
+sendDigest clients = do
+  let slackMap = assocUsernameToSlack clients
   (pullMap, usernameMap) <- digest
-  liftIO $ do
-    putStrLn $ show (length pullMap) <> " open pull requests"
-    for_ (Map.toList usernameMap) $ \(pullnum, usernames) -> do
-      let
-        Just pull = Map.lookup pullnum pullMap
-        usernamesWithSlack =
-          usernames <&> \name -> maybe name (("@" <>) . fst) $ Map.lookup name slackMap
-        msg = T.unlines
-          [ title pull
-          , "<" <> unUrl (view #html_url pull) <> ">"
-          , "Pending Review: " <> T.intercalate ", " usernamesWithSlack
-          ]
+  for_ (Map.toList usernameMap) $ \(pullNum, usernames) ->
+    sendSlack slackMap usernames
+      $ reminderMsg pullMap slackMap pullNum usernames
 
-      T.putStrLn msg
+sendSlack
+  :: (MonadRepo m, MonadHttp m)
+  => Map Username (Slackname, SlackId)
+  -> [Username]
+  -> Text
+  -> m ()
+sendSlack slackMap usernames msg = do
+  slackToken <- askSlackToken
+  for_ usernames $ \name -> case Map.lookup name slackMap of
+    Nothing -> pure ()
+    Just (_, slackId) -> when (name == "eborden") $ void $ postEphemeral
+      slackToken
+      Ephemeral {channel = "#test", text = msg, user = slackId, as_user = True}
 
-      for_ usernames $ \name ->
-        case Map.lookup name slackMap of
-          Nothing -> pure ()
-          Just (_, slackId) -> when (name == "eborden") $
-            print =<< postEphemeral slackToken Ephemeral
-              { channel = "#test"
-              , text = msg
-              , user = slackId
-              , as_user = True
-              }
+reminderMsg
+  :: Map Natural PR -> Map Username (Slackname, SlackId) -> Natural -> [Username] -> Text
+reminderMsg pullMap slackMap pullNum usernames = T.unlines
+  [ title pull
+  , "<" <> unUrl (view #html_url pull) <> ">"
+  , "Pending Review: " <> T.intercalate ", " usernamesWithSlack
+  ]
+ where
+  Just pull = Map.lookup pullNum pullMap
+  usernamesWithSlack = usernames
+    <&> \name -> maybe (tshow name) (("@" <>) . tshow . fst) $ Map.lookup name slackMap
 
-digest :: (MonadRepo m, MonadHttp m) => m (Map Natural PR, Map Natural [Text])
+assocUsernameToSlack :: [Client] -> Map Username (Slackname, SlackId)
+assocUsernameToSlack clients = Map.fromList
+  [ (u, (slackName, slackId))
+  | c <- clients
+  , let u = clientUsername c
+  , let Just slackName = clientSlackname c
+  , let Just slackId = clientSlackId c
+  ]
+
+digest :: (MonadRepo m, MonadHttp m) => m (Map Natural PR, Map Natural [Username])
 digest = do
   pulls <- either (throwM . userError) pure =<< getPulls
   reqUsers <- fmap mconcat . for pulls $ getReviewRequestUsers . view #number
