@@ -94,7 +94,11 @@ sendSlack slackMap usernames msg = do
       Ephemeral {channel = "#test", text = msg, user = slackId, as_user = True}
 
 reminderMsg
-  :: Map Natural PR -> Map Username (Slackname, SlackId) -> Natural -> [Username] -> Text
+  :: Map Natural PR
+  -> Map Username (Slackname, SlackId)
+  -> Natural
+  -> [Username]
+  -> Text
 reminderMsg pullMap slackMap pullNum usernames = T.unlines
   [ title pull
   , "<" <> unUrl (view #html_url pull) <> ">"
@@ -102,8 +106,8 @@ reminderMsg pullMap slackMap pullNum usernames = T.unlines
   ]
  where
   Just pull = Map.lookup pullNum pullMap
-  usernamesWithSlack = usernames
-    <&> \name -> maybe (tshow name) (("@" <>) . tshow . fst) $ Map.lookup name slackMap
+  usernamesWithSlack = usernames <&> \name ->
+    maybe (tshow name) (("@" <>) . tshow . fst) $ Map.lookup name slackMap
 
 assocUsernameToSlack :: [Client] -> Map Username (Slackname, SlackId)
 assocUsernameToSlack clients = Map.fromList
@@ -114,9 +118,12 @@ assocUsernameToSlack clients = Map.fromList
   , let Just slackId = clientSlackId c
   ]
 
-digest :: (MonadRepo m, MonadHttp m) => m (Map Natural PR, Map Natural [Username])
+digest
+  :: (MonadRepo m, MonadHttp m) => m (Map Natural PR, Map Natural [Username])
 digest = do
-  pulls <- either (throwM . userError) pure =<< getPulls
+  pulls <-
+    filter (not . hasLabels ignoreLabels)
+      <$> (either (throwM . userError) pure =<< getPulls)
   reqUsers <- fmap mconcat . for pulls $ getReviewRequestUsers . view #number
   respUsers <- fmap mconcat . for pulls $ getReviewResponseUsers . view #number
   let
@@ -125,3 +132,9 @@ digest = do
     usernameMap =
       Map.fromListWith mappend $ second (: []) <$> Set.toList pendingReview
   pure (pullMap, usernameMap)
+
+hasLabels :: [Text] -> PR -> Bool
+hasLabels labels pr = any (`elem` labels) $ view #name <$> view #labels pr
+
+ignoreLabels :: [Text]
+ignoreLabels = ["WIP", "Blocked"]

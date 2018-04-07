@@ -66,6 +66,7 @@ data PR = PR
   , title :: Text
   , user :: User
   , html_url :: Url
+  , labels :: [Label]
   }
   deriving (Show, Generic, FromJSON)
 
