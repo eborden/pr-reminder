@@ -71,13 +71,14 @@ instance MonadRepo Run where
   askToken = asks $ view #token
   askSlackToken = asks $ view #slackToken
 
-sendDigest :: (MonadRepo m, MonadHttp m) => [Client] -> m ()
+sendDigest :: (MonadLogger m, MonadRepo m, MonadHttp m) => [Client] -> m ()
 sendDigest clients = do
   let slackMap = assocUsernameToSlack clients
   (pullMap, usernameMap) <- digest
-  for_ (Map.toList usernameMap) $ \(pullNum, usernames) ->
-    sendSlack slackMap usernames
-      $ reminderMsg pullMap slackMap pullNum usernames
+  for_ (Map.toList usernameMap) $ \(pullNum, usernames) -> do
+    let msg = reminderMsg pullMap slackMap pullNum usernames
+    sendSlack slackMap usernames msg
+    logInfoN msg
 
 sendSlack
   :: (MonadRepo m, MonadHttp m)
@@ -99,7 +100,7 @@ reminderMsg
   -> Natural
   -> [Username]
   -> Text
-reminderMsg pullMap slackMap pullNum usernames = T.unlines
+reminderMsg pullMap slackMap pullNum usernames = T.strip $ T.unlines
   [ title pull
   , "<" <> unUrl (view #html_url pull) <> ">"
   , "Pending Review: " <> T.intercalate ", " usernamesWithSlack
