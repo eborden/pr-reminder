@@ -27,8 +27,8 @@ instance MonadHttp m => MonadHttp (ReaderT a m) where
 
 instance (MonadIO m, MonadHttp m) => MonadHttp (LoggingT m) where
   getWith o url = do
-    logInfoN $ "GET " <> pack url
+    logDebugN $ "GET " <> pack url
     lift $ getWith o url
   postWith o url payload = do
-    logInfoN $ "POST " <> pack url
+    logDebugN $ "POST " <> pack url
     lift $ postWith o url payload
