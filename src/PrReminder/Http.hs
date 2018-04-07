@@ -4,9 +4,12 @@ module PrReminder.Http
   )
 where
 
-import Control.Monad.Catch
+import Import
+
+import Control.Monad.Logger
 import Control.Monad.Reader
 import Data.ByteString.Lazy (ByteString)
+import Data.Text (pack)
 import qualified Network.Wreq as Wreq
 import qualified Network.Wreq.Types as Wreq
 
@@ -21,3 +24,11 @@ instance MonadHttp IO where
 instance MonadHttp m => MonadHttp (ReaderT a m) where
   getWith o = lift . getWith o
   postWith o s = lift . postWith o s
+
+instance (MonadIO m, MonadHttp m) => MonadHttp (LoggingT m) where
+  getWith o url = do
+    logInfoN $ "GET " <> pack url
+    lift $ getWith o url
+  postWith o url payload = do
+    logInfoN $ "POST " <> pack url
+    lift $ postWith o url payload

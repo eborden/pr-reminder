@@ -30,6 +30,7 @@ library:
   - http-client
   - lens
   - megaparsec
+  - monad-logger
   - persistent
   - persistent-sqlite
   - persistent-template

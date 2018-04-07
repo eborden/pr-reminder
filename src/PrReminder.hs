@@ -6,6 +6,7 @@ where
 import Import
 
 import Control.Lens
+import Control.Monad.Logger
 import Control.Monad.Reader
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -28,7 +29,7 @@ main = do
     runMigration migrateAll
     fmap entityVal <$> selectList [] []
   withApps $ \app ->
-    (`runReaderT` app) . run $ sendDigest clients
+    runStderrLoggingT . (`runReaderT` app) . run $ sendDigest clients
 
 withApps :: (App -> IO b) -> IO ()
 withApps f = do
@@ -51,18 +52,18 @@ data App = App
   }
   deriving (Generic)
 
-newtype Run a = Run { run :: ReaderT App IO a }
+newtype Run a = Run { run :: ReaderT App (LoggingT IO) a }
   deriving newtype
     ( Functor
     , Applicative
     , Monad
+    , MonadLogger
     , MonadReader App
     , MonadHttp
     , MonadThrow
     , MonadCatch
     , MonadIO
     )
-
 
 instance MonadRepo Run where
   askRepo = asks $ view #repo
