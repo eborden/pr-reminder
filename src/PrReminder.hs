@@ -137,8 +137,8 @@ getPendingReviews pull reqUsers = do
   let pendingReview = Set.difference reqUsers respUsers
   pure (pull, pendingReview)
 
-hasLabels :: [Text] -> PR -> Bool
+hasLabels :: Set Text -> PR -> Bool
 hasLabels labels pr = any (`elem` labels) $ view #name <$> view #labels pr
 
-ignoreLabels :: [Text]
-ignoreLabels = ["WIP", "Blocked"]
+ignoreLabels :: Set Text
+ignoreLabels = Set.fromList ["WIP", "Blocked"]
