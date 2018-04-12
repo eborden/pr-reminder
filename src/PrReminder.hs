@@ -85,7 +85,7 @@ sendDigest clients = do
     $ fetchPRs
     .| C.mapM getReviewRequests
     .| C.filter (not . null . snd)
-    .| C.mapM getPendingReviews
+    .| C.mapM (uncurry getPendingReviews)
     .| C.mapM send
     .| C.sinkNull
 
@@ -131,8 +131,8 @@ getReviewRequests :: (MonadRepo m, MonadHttp m) => PR -> m (PR, Set Username)
 getReviewRequests pull = (pull, ) <$> getReviewRequestUsers (view #number pull)
 
 getPendingReviews
-  :: (MonadRepo m, MonadHttp m) => (PR, Set Username) -> m (PR, Set Username)
-getPendingReviews (pull, reqUsers) = do
+  :: (MonadRepo m, MonadHttp m) => PR -> Set Username -> m (PR, Set Username)
+getPendingReviews pull reqUsers = do
   respUsers <- getReviewResponseUsers $ view #number pull
   let pendingReview = Set.difference reqUsers respUsers
   pure (pull, pendingReview)
