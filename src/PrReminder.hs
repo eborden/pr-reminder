@@ -8,6 +8,8 @@ import Import
 import Control.Lens
 import Control.Monad.Logger
 import Control.Monad.Reader
+import Data.Conduit
+import qualified Data.Conduit.List as C
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
@@ -73,17 +75,18 @@ instance MonadRepo Run where
 
 sendDigest :: (MonadLogger m, MonadRepo m, MonadHttp m) => [Client] -> m ()
 sendDigest clients = do
-  let slackMap = assocUsernameToSlack clients
-  (pullMap, usernameMap) <- digest
-  for_ (Map.toList usernameMap) $ \(pullNum, usernames) -> do
-    let msg = reminderMsg pullMap slackMap pullNum usernames
-    sendSlack slackMap usernames msg
-    logInfoN msg
+  let
+    slackMap = assocUsernameToSlack clients
+    send (pull, usernames) = do
+      let msg = reminderMsg slackMap pull usernames
+      sendSlack slackMap usernames msg
+      logInfoN msg
+  runConduit $ fetchPRs .| C.mapM getReviews .| C.mapM send .| C.sinkNull
 
 sendSlack
   :: (MonadRepo m, MonadHttp m)
   => Map Username (Slackname, SlackId)
-  -> [Username]
+  -> Set Username
   -> Text
   -> m ()
 sendSlack slackMap usernames msg = do
@@ -94,20 +97,14 @@ sendSlack slackMap usernames msg = do
       slackToken
       Ephemeral {channel = "#test", text = msg, user = slackId, as_user = True}
 
-reminderMsg
-  :: Map Natural PR
-  -> Map Username (Slackname, SlackId)
-  -> Natural
-  -> [Username]
-  -> Text
-reminderMsg pullMap slackMap pullNum usernames = T.strip $ T.unlines
+reminderMsg :: Map Username (Slackname, SlackId) -> PR -> Set Username -> Text
+reminderMsg slackMap pull usernames = T.strip $ T.unlines
   [ title pull
   , "<" <> unUrl (view #html_url pull) <> ">"
   , "Pending Review: " <> T.intercalate ", " usernamesWithSlack
   ]
  where
-  Just pull = Map.lookup pullNum pullMap
-  usernamesWithSlack = usernames <&> \name ->
+  usernamesWithSlack = toList usernames <&> \name ->
     maybe (tshow name) (("@" <>) . tshow . fst) $ Map.lookup name slackMap
 
 assocUsernameToSlack :: [Client] -> Map Username (Slackname, SlackId)
@@ -119,20 +116,17 @@ assocUsernameToSlack clients = Map.fromList
   , let Just slackId = clientSlackId c
   ]
 
-digest
-  :: (MonadRepo m, MonadHttp m) => m (Map Natural PR, Map Natural [Username])
-digest = do
-  pulls <-
-    filter (not . hasLabels ignoreLabels)
-      <$> (either (throwM . userError) pure =<< getPulls)
-  reqUsers <- fmap mconcat . for pulls $ getReviewRequestUsers . view #number
-  respUsers <- fmap mconcat . for pulls $ getReviewResponseUsers . view #number
-  let
-    pullMap = Map.fromList $ (view #number &&& Prelude.id) <$> pulls
-    pendingReview = Set.difference reqUsers respUsers
-    usernameMap =
-      Map.fromListWith mappend $ second (: []) <$> Set.toList pendingReview
-  pure (pullMap, usernameMap)
+fetchPRs :: (MonadRepo m, MonadHttp m) => ConduitT i PR m ()
+fetchPRs = do
+  pulls <- lift $ either (throwM . userError) pure =<< getPulls
+  C.sourceList pulls .| C.filter (not . hasLabels ignoreLabels)
+
+getReviews :: (MonadRepo m, MonadHttp m) => PR -> m (PR, Set Username)
+getReviews pull = do
+  reqUsers <- getReviewRequestUsers $ view #number pull
+  respUsers <- getReviewResponseUsers $ view #number pull
+  let pendingReview = Set.difference reqUsers respUsers
+  pure (pull, Set.map snd pendingReview)
 
 hasLabels :: [Text] -> PR -> Bool
 hasLabels labels pr = any (`elem` labels) $ view #name <$> view #labels pr

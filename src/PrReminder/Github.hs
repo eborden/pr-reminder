@@ -34,7 +34,7 @@ data Team = Team
   { id :: Ref
   , name :: Text
   , url :: Url
-  , member_url :: Text
+  -- , member_url :: Text
   }
   deriving (Show, Generic, FromJSON)
 
@@ -94,12 +94,14 @@ getReviewRequest num = getWithToken
 getReviewRequestUsers
   :: (MonadHttp m, MonadRepo m) => Natural -> m (Set (Natural, Username))
 getReviewRequestUsers num = do
-  Right rev <- getReviewRequest num
+  rev <- either (throwM . userError) pure =<< getReviewRequest num
   let usernames = Set.fromList $ (num, ) . view #login <$> users rev
 
   -- TODO handle teams
+  {-
   (_eUsers :: [Either String [User]]) <-
     traverse getWithToken $ T.unpack . view #member_url <$> teams rev
+  -}
 
   pure usernames
 
@@ -136,6 +138,7 @@ getWithToken url = do
  where
   go opts = do
     resp <- getWith opts $ mappend "https://api.github.com" url
+    --traceM . show $ resp ^? responseLink "rel" "next" . linkURL
     pure $ eitherDecode $ view responseBody resp
   handler err@HttpExceptionRequest{} = pure . Left $ "http error: " <> show err
   handler err = pure . Left $ "unexpected error: " <> show err

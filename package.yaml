@@ -23,6 +23,7 @@ library:
   dependencies:
   - aeson
   - bytestring
+  - conduit
   - containers
   - exceptions
   - generic-lens
@@ -49,6 +50,7 @@ default-extensions:
 - GADTs
 - GeneralizedNewtypeDeriving
 - MultiParamTypeClasses
+- RankNTypes
 - NamedFieldPuns
 - OverloadedLabels
 - OverloadedStrings
