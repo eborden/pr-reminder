@@ -92,10 +92,10 @@ getReviewRequest num = getWithToken
   =<< prefixWithRepo ("/pulls/" <> show num <> "/requested_reviewers")
 
 getReviewRequestUsers
-  :: (MonadHttp m, MonadRepo m) => Natural -> m (Set (Natural, Username))
+  :: (MonadHttp m, MonadRepo m) => Natural -> m (Set Username)
 getReviewRequestUsers num = do
   rev <- either (throwM . userError) pure =<< getReviewRequest num
-  let usernames = Set.fromList $ (num, ) . view #login <$> users rev
+  let usernames = Set.fromList $ view #login <$> users rev
 
   -- TODO handle teams
   {-
@@ -118,10 +118,10 @@ getReviewRespose num =
   getWithToken =<< prefixWithRepo ("/pulls/" <> show num <> "/reviews")
 
 getReviewResponseUsers
-  :: (MonadHttp m, MonadRepo m) => Natural -> m (Set (Natural, Username))
+  :: (MonadHttp m, MonadRepo m) => Natural -> m (Set Username)
 getReviewResponseUsers num = do
   Right resps <- getReviewRespose num
-  pure . Set.fromList $ (num, ) . view (#user . #login) <$> resps
+  pure . Set.fromList $ view (#user . #login) <$> resps
 
 getWithToken
   :: (MonadRepo m, MonadHttp m, FromJSON a) => String -> m (Either String a)

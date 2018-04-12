@@ -83,8 +83,9 @@ sendDigest clients = do
       logInfoN msg
   runConduit
     $ fetchPRs
-    .| C.mapM getReviews
+    .| C.mapM getReviewRequests
     .| C.filter (not . null . snd)
+    .| C.mapM getPendingReviews
     .| C.mapM send
     .| C.sinkNull
 
@@ -126,12 +127,15 @@ fetchPRs = do
   pulls <- lift $ either (throwM . userError) pure =<< getPulls
   C.sourceList pulls .| C.filter (not . hasLabels ignoreLabels)
 
-getReviews :: (MonadRepo m, MonadHttp m) => PR -> m (PR, Set Username)
-getReviews pull = do
-  reqUsers <- getReviewRequestUsers $ view #number pull
+getReviewRequests :: (MonadRepo m, MonadHttp m) => PR -> m (PR, Set Username)
+getReviewRequests pull =
+  (pull, ) <$> getReviewRequestUsers (view #number pull)
+
+getPendingReviews :: (MonadRepo m, MonadHttp m) => (PR, Set Username) -> m (PR, Set Username)
+getPendingReviews (pull, reqUsers) = do
   respUsers <- getReviewResponseUsers $ view #number pull
   let pendingReview = Set.difference reqUsers respUsers
-  pure (pull, Set.map snd pendingReview)
+  pure (pull, pendingReview)
 
 hasLabels :: [Text] -> PR -> Bool
 hasLabels labels pr = any (`elem` labels) $ view #name <$> view #labels pr
