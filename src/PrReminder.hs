@@ -74,13 +74,7 @@ instance MonadRepo Run where
   askSlackToken = asks $ view #slackToken
 
 sendDigest :: (MonadLogger m, MonadRepo m, MonadHttp m) => [Client] -> m ()
-sendDigest clients = do
-  let
-    slackMap = assocUsernameToSlack clients
-    send (pull, usernames) = do
-      let msg = reminderMsg slackMap pull usernames
-      sendSlack slackMap usernames msg
-      logInfoN msg
+sendDigest clients =
   runConduit
     $ fetchPRs
     .| C.mapM getReviewRequests
@@ -88,6 +82,12 @@ sendDigest clients = do
     .| C.mapM (uncurry getPendingReviews)
     .| C.mapM send
     .| C.sinkNull
+ where
+  slackMap = assocUsernameToSlack clients
+  send (pull, usernames) = do
+    let msg = reminderMsg slackMap pull usernames
+    sendSlack slackMap usernames msg
+    logInfoN msg
 
 sendSlack
   :: (MonadRepo m, MonadHttp m)
