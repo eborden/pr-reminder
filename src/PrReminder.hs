@@ -81,7 +81,12 @@ sendDigest clients = do
       let msg = reminderMsg slackMap pull usernames
       sendSlack slackMap usernames msg
       logInfoN msg
-  runConduit $ fetchPRs .| C.mapM getReviews .| C.mapM send .| C.sinkNull
+  runConduit
+    $ fetchPRs
+    .| C.mapM getReviews
+    .| C.filter (not . null . snd)
+    .| C.mapM send
+    .| C.sinkNull
 
 sendSlack
   :: (MonadRepo m, MonadHttp m)
